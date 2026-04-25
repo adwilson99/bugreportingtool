@@ -1,6 +1,6 @@
 import os
 import uuid
-import base64
+from pathlib import Path
 from datetime import datetime, timezone
 
 import requests
@@ -12,12 +12,17 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key")
 
+BASE_DIR = Path(__file__).resolve().parent
+SCREENSHOT_DIR = BASE_DIR / "static" / "fault_screenshots"
+SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+
+APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:5000").rstrip("/")
 APP_ENVIRONMENT = os.getenv("APP_ENVIRONMENT", "UAT")
+
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_OWNER = os.getenv("GITHUB_OWNER", "")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "")
-GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
-GITHUB_ATTACHMENT_PATH = os.getenv("GITHUB_ATTACHMENT_PATH", "fault-attachments")
+
 AUTH_USER_HEADER = os.getenv("AUTH_USER_HEADER", "X-Forwarded-User")
 DEFAULT_TEST_USER = os.getenv("DEFAULT_TEST_USER", "test.user")
 
@@ -51,14 +56,31 @@ def validate_github_config():
         "GITHUB_TOKEN": GITHUB_TOKEN,
         "GITHUB_OWNER": GITHUB_OWNER,
         "GITHUB_REPO": GITHUB_REPO,
-        "GITHUB_BRANCH": GITHUB_BRANCH,
-        "GITHUB_ATTACHMENT_PATH": GITHUB_ATTACHMENT_PATH,
     }.items():
         if not value:
             missing.append(key)
 
     if missing:
         raise ValueError(f"Missing GitHub configuration: {', '.join(missing)}")
+
+
+def save_uploaded_screenshot(file_storage, report_id):
+    now = datetime.now(timezone.utc)
+    dated_dir = SCREENSHOT_DIR / now.strftime("%Y") / now.strftime("%m") / now.strftime("%d")
+    dated_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{report_id}.png"
+    full_path = dated_dir / filename
+    file_storage.save(full_path)
+
+    relative_path = full_path.relative_to(BASE_DIR / "static").as_posix()
+    screenshot_url = f"{APP_BASE_URL}/static/{relative_path}"
+
+    return {
+        "full_path": str(full_path),
+        "relative_path": relative_path,
+        "url": screenshot_url
+    }
 
 
 def build_labels(category, environment):
@@ -79,62 +101,28 @@ def build_issue_title(description, environment):
     return f"[{environment}] Dashboard fault: {short}"
 
 
-def upload_screenshot_to_github(file_bytes, report_id):
-    validate_github_config()
-
-    now = datetime.now(timezone.utc)
-    path = (
-        f"{GITHUB_ATTACHMENT_PATH}/"
-        f"{now.strftime('%Y')}/"
-        f"{now.strftime('%m')}/"
-        f"{now.strftime('%d')}/"
-        f"{report_id}.png"
-    )
-
-    content_b64 = base64.b64encode(file_bytes).decode("utf-8")
-
-    url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/{path}"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json"
-    }
-    payload = {
-        "message": f"Add fault screenshot {report_id}",
-        "content": content_b64,
-        "branch": GITHUB_BRANCH
-    }
-
-    response = requests.put(url, headers=headers, json=payload, timeout=30)
-
-    if response.status_code >= 400:
-        raise RuntimeError(f"GitHub file upload failed {response.status_code}: {response.text}")
-
-    result = response.json()
-
-    raw_url = f"https://raw.githubusercontent.com/{GITHUB_OWNER}/{GITHUB_REPO}/{GITHUB_BRANCH}/{path}"
-    blob_url = result["content"]["html_url"]
-
-    return {
-        "path": path,
-        "raw_url": raw_url,
-        "blob_url": blob_url
-    }
-
-
 def build_issue_body(report):
     screenshot_section = "_No screenshot available_"
 
-    if report.get("screenshot_raw_url"):
+    if report.get("screenshot_url"):
         screenshot_section = (
-            f"![Fault Screenshot]({report['screenshot_raw_url']})\n\n"
-            f"[Open Screenshot File]({report['screenshot_blob_url']})"
+            f"![Fault Screenshot]({report['screenshot_url']})\n\n"
+            f"[Open Screenshot File]({report['screenshot_url']})"
         )
+
+    extra_metadata_lines = ""
+    if report.get("extra_metadata"):
+        for key, value in report["extra_metadata"].items():
+            extra_metadata_lines += f"- {key}: {value}\n"
 
     body = f"""## Summary
 {report['description']}
 
 ## Category
 {report['category'] or 'Unspecified'}
+
+## Application
+{report.get('app_name') or 'Unknown'}
 
 ## Reported by
 {report['username']}
@@ -157,6 +145,7 @@ def build_issue_body(report):
 ## Internal Metadata
 - Report ID: {report['report_id']}
 - Source: Dashboard Fault Reporter
+{extra_metadata_lines if extra_metadata_lines else ""}
 """
     return body
 
@@ -183,6 +172,18 @@ def create_github_issue(title, body, labels):
     return response.json()
 
 
+def parse_extra_metadata(raw_value):
+    if not raw_value:
+        return {}
+
+    try:
+        import json
+        parsed = json.loads(raw_value)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
 @app.route("/")
 def index():
     return render_template(
@@ -199,6 +200,9 @@ def report_fault():
         category = request.form.get("category", "").strip()
         page_url = request.form.get("page_url", "").strip()
         user_agent = request.form.get("user_agent", "").strip()
+        app_name = request.form.get("app_name", "").strip()
+        frontend_environment = request.form.get("environment", "").strip()
+        extra_metadata_raw = request.form.get("extra_metadata", "").strip()
         screenshot = request.files.get("screenshot")
 
         if not description:
@@ -211,11 +215,10 @@ def report_fault():
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         report_id = f"FR-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{str(uuid.uuid4())[:8]}"
 
-        screenshot_bytes = screenshot.read()
-        if not screenshot_bytes:
-            return jsonify({"success": False, "message": "Uploaded screenshot is empty"}), 400
+        environment = frontend_environment or APP_ENVIRONMENT
+        extra_metadata = parse_extra_metadata(extra_metadata_raw)
 
-        upload_result = upload_screenshot_to_github(screenshot_bytes, report_id)
+        screenshot_info = save_uploaded_screenshot(screenshot, report_id)
 
         report = {
             "report_id": report_id,
@@ -225,14 +228,15 @@ def report_fault():
             "timestamp": timestamp,
             "page_url": page_url,
             "user_agent": user_agent,
-            "environment": APP_ENVIRONMENT,
-            "screenshot_raw_url": upload_result["raw_url"],
-            "screenshot_blob_url": upload_result["blob_url"]
+            "environment": environment,
+            "app_name": app_name,
+            "extra_metadata": extra_metadata,
+            "screenshot_url": screenshot_info["url"]
         }
 
-        issue_title = build_issue_title(description, APP_ENVIRONMENT)
+        issue_title = build_issue_title(description, environment)
         issue_body = build_issue_body(report)
-        labels = build_labels(category, APP_ENVIRONMENT)
+        labels = build_labels(category, environment)
 
         issue = create_github_issue(issue_title, issue_body, labels)
 
@@ -242,8 +246,7 @@ def report_fault():
             "report_id": report_id,
             "github_issue_number": issue["number"],
             "github_issue_url": issue["html_url"],
-            "screenshot_blob_url": upload_result["blob_url"],
-            "screenshot_raw_url": upload_result["raw_url"]
+            "screenshot_url": screenshot_info["url"]
         })
 
     except Exception as exc:
