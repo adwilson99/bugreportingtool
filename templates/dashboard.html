@@ -503,6 +503,7 @@
       display: none;
       z-index: 10000;
       max-width: 420px;
+      white-space: pre-wrap;
     }
 
     .toast.show {
@@ -685,7 +686,7 @@
 
       <div class="card">
         <h3>Prototype Notes</h3>
-        <p>This prototype now captures the entire visible page, including toasts, popups, overlays, and the fault report modal itself.</p>
+        <p>This prototype captures the entire visible page, including toasts, popups, overlays, and the fault report modal itself.</p>
 
         <div class="shortcut-hint">
           <strong>Tip:</strong> Press
@@ -1217,15 +1218,21 @@
           throw new Error(result.message || "Failed to create GitHub issue");
         }
 
-        successBox.innerHTML = `
-          <strong>GitHub issue created successfully.</strong><br>
-          Report ID: ${result.report_id}<br>
-          Issue: <a href="${result.github_issue_url}" target="_blank">${result.github_issue_url}</a>
-        `;
-        successBox.classList.add("show");
+        // FIX 1: close modal on success
+        closeModal();
 
         faultDescription.value = "";
         faultCategory.value = "";
+        resetAnnotationState();
+
+        successBox.innerHTML = `
+          <strong>GitHub issue created successfully.</strong><br>
+          Report ID: ${result.report_id}<br>
+          Issue: <a href="${result.github_issue_url}" target="_blank">${result.github_issue_url}</a><br>
+          Screenshot: <a href="${result.screenshot_blob_url}" target="_blank">Open uploaded image</a>
+        `;
+        successBox.classList.add("show");
+
         showToast(`GitHub issue #${result.github_issue_number} created.`, "success");
       } catch (err) {
         console.error(err);
