@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fault Reporting Prototype</title>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f6fa;
+      color: #1f2937;
+    }
+
+    .topbar {
+      background: #132d67;
+      color: white;
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+
+    .topbar small {
+      display: block;
+      color: #cbd5e1;
+      margin-top: 4px;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      background: rgba(255,255,255,0.15);
+      border-radius: 20px;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .report-btn {
+      background: #dc2626;
+      color: white;
+    }
+
+    .report-btn:hover {
+      background: #b91c1c;
+    }
+
+    .primary-btn {
+      background: #2563eb;
+      color: white;
+    }
+
+    .primary-btn:hover {
+      background: #1d4ed8;
+    }
+
+    .secondary-btn {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .secondary-btn:hover {
+      background: #d1d5db;
+    }
+
+    .tool-btn.active {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #ef4444;
+    }
+
+    .page {
+      padding: 18px;
+    }
+
+    .dashboard {
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .header-row h2 {
+      margin: 0;
+      font-size: 36px;
+    }
+
+    .header-row p {
+      margin: 6px 0 0;
+      color: #6b7280;
+    }
+
+    .filters {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      background: #eef2f7;
+      border: 1px solid #d6dde8;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #4b5563;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #dbe3ec;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.04);
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .metric-trend {
+      font-size: 12px;
+      margin-top: 8px;
+      color: #16a34a;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.3fr 0.9fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .chart {
+      height: 220px;
+      display: flex;
+      align-items: flex-end;
+      gap: 16px;
+      padding: 20px 10px 10px;
+    }
+
+    .bar-group {
+      flex: 1;
+      text-align: center;
+    }
+
+    .bar-value {
+      font-size: 12px;
+      font-weight: bold;
+      color: #1d4ed8;
+      margin-bottom: 6px;
+    }
+
+    .bar {
+      width: 30px;
+      margin: 0 auto 6px;
+      background: linear-gradient(to top, #2563eb, #60a5fa);
+      border-radius: 6px 6px 2px 2px;
+    }
+
+    .bar-label {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 6px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+      color: #6b7280;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .status {
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: bold;
+      display: inline-block;
+    }
+
+    .ok { background: #dcfce7; color: #166534; }
+    .warn { background: #fef3c7; color: #92400e; }
+    .alert { background: #fee2e2; color: #991b1b; }
+
+    .timeline-item {
+      border-left: 4px solid #93c5fd;
+      padding-left: 10px;
+      margin-bottom: 14px;
+    }
+
+    .timeline-item strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .note {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    .action-row {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .shortcut-hint {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #374151;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .shortcut-key {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: #e5e7eb;
+      border: 1px solid #d1d5db;
+      font-family: monospace;
+      font-size: 12px;
+      margin: 0 2px;
+    }
+
+    .demo-popup-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 5000;
+      padding: 20px;
+    }
+
+    .demo-popup-backdrop.show {
+      display: flex;
+    }
+
+    .demo-popup {
+      width: min(520px, 92vw);
+      background: white;
+      border-radius: 14px;
+      border: 1px solid #dbe3ec;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+      overflow: hidden;
+    }
+
+    .demo-popup-header {
+      padding: 16px 18px;
+      background: #fee2e2;
+      color: #991b1b;
+      font-weight: bold;
+      border-bottom: 1px solid #fecaca;
+    }
+
+    .demo-popup-body {
+      padding: 18px;
+      color: #374151;
+      line-height: 1.6;
+    }
+
+    .demo-popup-footer {
+      padding: 14px 18px;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      padding: 20px;
+    }
+
+    .modal-backdrop.show {
+      display: flex;
+    }
+
+    .modal {
+      width: min(1100px, 96vw);
+      height: min(88vh, 820px);
+      overflow: hidden;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+
+    .modal-body {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) 360px;
+      gap: 18px;
+      overflow: hidden;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      flex: 0 0 auto;
+    }
+
+    .panel {
+      border: 1px solid #dbe3ec;
+      border-radius: 12px;
+      padding: 14px;
+      background: #fff;
+      min-height: 0;
+    }
+
+    .panel h3 {
+      margin-top: 0;
+      font-size: 16px;
+    }
+
+    .left-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .right-panel {
+      overflow: auto;
+    }
+
+    .annotation-toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      flex: 0 0 auto;
+    }
+
+    .annotation-stage {
+      border: 1px solid #dbe3ec;
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 8px;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: block;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      display: block;
+      line-height: 0;
+      width: 100%;
+    }
+
+    #baseCanvas {
+      display: block;
+      background: white;
+      border-radius: 6px;
+      width: 100%;
+      height: auto;
+    }
+
+    #drawCanvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 2;
+      cursor: crosshair;
+      background: transparent;
+    }
+
+    textarea, input, select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-top: 6px;
+      margin-bottom: 12px;
+      font-family: Arial, sans-serif;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    .meta {
+      font-size: 13px;
+      color: #4b5563;
+      line-height: 1.6;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 10px;
+      word-break: break-word;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 8px;
+      flex: 0 0 auto;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #111827;
+      color: white;
+      padding: 14px 16px;
+      border-radius: 10px;
+      display: none;
+      z-index: 10000;
+      max-width: 420px;
+    }
+
+    .toast.show {
+      display: block;
+    }
+
+    .toast.error {
+      background: #991b1b;
+    }
+
+    .toast.success {
+      background: #166534;
+    }
+
+    .success-box {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+      display: none;
+    }
+
+    .success-box.show {
+      display: block;
+    }
+
+    .success-box a {
+      color: #065f46;
+      font-weight: bold;
+    }
+
+    @media (max-width: 980px) {
+      .metrics,
+      .grid,
+      .bottom-grid,
+      .modal-body {
+        grid-template-columns: 1fr;
+      }
+
+      .modal {
+        height: min(92vh, 900px);
+      }
+
+      .right-panel {
+        max-height: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>Operations Dashboard</h1>
+      <small>Fault reporting prototype with GitHub issue creation</small>
+    </div>
+    <div class="topbar-right">
+      <div class="badge">User: {{ current_user }}</div>
+      <div class="badge">Env: {{ app_environment }}</div>
+      <button
+        class="report-btn"
+        id="reportFaultBtn"
+        title="Report a fault. Shortcut: Ctrl + Alt + R"
+      >
+        Report Fault
+      </button>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="dashboard">
+      <div class="header-row">
+        <div>
+          <h2>Executive Service Overview</h2>
+          <p>Live KPI snapshot across incidents, response times, throughput, and service health.</p>
+        </div>
+        <div class="filters">
+          <div class="pill">Date: Last 24 Hours</div>
+          <div class="pill">Region: All</div>
+          <div class="pill">Service Line: Core Ops</div>
+          <div class="pill">Refresh: Every 5 min</div>
+        </div>
+      </div>
+
+      <div class="metrics">
+        <div class="card">
+          <div class="metric-label">Open Incidents</div>
+          <div class="metric-value">18</div>
+          <div class="metric-trend">▼ 12% vs yesterday</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">SLA Compliance</div>
+          <div class="metric-value">97.4%</div>
+          <div class="metric-trend">▲ 1.8% this week</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Avg Response Time</div>
+          <div class="metric-value">4m 12s</div>
+          <div class="metric-trend">▲ within target</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Transactions Processed</div>
+          <div class="metric-value">124,883</div>
+          <div class="metric-trend">▲ 6.3% today</div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Incident Trend</h3>
+          <div class="chart">
+            <div class="bar-group"><div class="bar-value">12</div><div class="bar" style="height:45px;"></div><div class="bar-label">Mon</div></div>
+            <div class="bar-group"><div class="bar-value">19</div><div class="bar" style="height:70px;"></div><div class="bar-label">Tue</div></div>
+            <div class="bar-group"><div class="bar-value">9</div><div class="bar" style="height:35px;"></div><div class="bar-label">Wed</div></div>
+            <div class="bar-group"><div class="bar-value">24</div><div class="bar" style="height:95px;"></div><div class="bar-label">Thu</div></div>
+            <div class="bar-group"><div class="bar-value">16</div><div class="bar" style="height:60px;"></div><div class="bar-label">Fri</div></div>
+            <div class="bar-group"><div class="bar-value">14</div><div class="bar" style="height:55px;"></div><div class="bar-label">Sat</div></div>
+            <div class="bar-group"><div class="bar-value">18</div><div class="bar" style="height:68px;"></div><div class="bar-label">Sun</div></div>
+          </div>
+          <div class="note">Use the fault reporter to capture, annotate, and submit a GitHub issue.</div>
+        </div>
+
+        <div class="card">
+          <h3>Service Health</h3>
+          <table>
+            <thead>
+              <tr><th>Service</th><th>Status</th><th>Latency</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Authentication API</td><td><span class="status ok">Healthy</span></td><td>142 ms</td></tr>
+              <tr><td>Order Pipeline</td><td><span class="status warn">Degraded</span></td><td>889 ms</td></tr>
+              <tr><td>Notifications</td><td><span class="status ok">Healthy</span></td><td>205 ms</td></tr>
+              <tr><td>Warehouse Feed</td><td><span class="status alert">Alert</span></td><td>1.8 s</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bottom-grid">
+        <div class="card">
+          <h3>Recent Alert Timeline</h3>
+          <div class="timeline-item">
+            <strong>14:03 - High latency on Order Pipeline</strong>
+            <div>Observed spike in processing time after upstream queue growth.</div>
+          </div>
+          <div class="timeline-item">
+            <strong>13:41 - Warehouse Feed timeout</strong>
+            <div>Intermittent failures reported for external connector.</div>
+          </div>
+          <div class="timeline-item">
+            <strong>12:18 - Dashboard refresh delay</strong>
+            <div>Some users observed stale KPI tiles for approximately 3 minutes.</div>
+          </div>
+          <div class="timeline-item">
+            <strong>11:52 - Authentication rate limit warning</strong>
+            <div>Temporary login spike from internal support users.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Top Queues by Volume</h3>
+          <table>
+            <thead>
+              <tr><th>Queue</th><th>Pending</th><th>Rate / Min</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>orders-ingest</td><td>324</td><td>1,440</td></tr>
+              <tr><td>shipment-update</td><td>91</td><td>820</td></tr>
+              <tr><td>inventory-sync</td><td>46</td><td>610</td></tr>
+              <tr><td>billing-events</td><td>12</td><td>390</td></tr>
+            </tbody>
+          </table>
+          <div class="action-row">
+            <button class="secondary-btn">Refresh Data</button>
+            <button class="secondary-btn">Export CSV</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Prototype Notes</h3>
+        <p>This prototype now captures the entire visible page, including toasts, popups, overlays, and the fault report modal itself.</p>
+
+        <div class="shortcut-hint">
+          <strong>Tip:</strong> Press
+          <span class="shortcut-key">Ctrl</span> +
+          <span class="shortcut-key">Alt</span> +
+          <span class="shortcut-key">R</span>
+          to capture whatever is currently visible on screen.
+        </div>
+
+        <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="secondary-btn" id="showDemoPopupBtn">Show Demo App Popup</button>
+          <button class="secondary-btn" id="openFaultModalForTestingBtn">Open Fault Modal For Testing</button>
+          <button class="secondary-btn" id="showErrorToastBtn">Show Error Toast</button>
+        </div>
+
+        <div class="success-box" id="successBox"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo-popup-backdrop" id="demoPopup">
+    <div class="demo-popup">
+      <div class="demo-popup-header">Application Error</div>
+      <div class="demo-popup-body">
+        A simulated application popup is shown here for testing screenshot capture.
+        Use the normal <strong>Report Fault</strong> button or press
+        <strong>Ctrl + Alt + R</strong> to capture the visible screen including this popup.
+      </div>
+      <div class="demo-popup-footer">
+        <button class="secondary-btn" id="closeDemoPopupBtn">Dismiss</button>
+        <button class="report-btn" id="reportFromDemoPopupBtn">Report This Issue</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="faultModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 style="margin:0;">Report a Fault</h2>
+        <button id="closeModalBtn" class="secondary-btn">Close</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="panel left-panel">
+          <h3>Screenshot Preview & Annotation</h3>
+
+          <div class="annotation-toolbar">
+            <button id="drawToggleBtn" class="secondary-btn tool-btn active" type="button">Red Pen On</button>
+            <button id="undoBtn" class="secondary-btn" type="button">Undo</button>
+            <button id="clearBtn" class="secondary-btn" type="button">Clear Ink</button>
+          </div>
+
+          <div class="annotation-stage" id="annotationStage">
+            <div class="canvas-wrap" id="canvasWrap">
+              <canvas id="baseCanvas"></canvas>
+              <canvas id="drawCanvas"></canvas>
+            </div>
+          </div>
+
+          <div class="hint">
+            The screenshot is scaled to the frame width and keeps its aspect ratio. Scroll vertically to review or annotate lower sections.
+          </div>
+        </div>
+
+        <div class="panel right-panel">
+          <h3>Fault Details</h3>
+
+          <label for="faultDescription"><strong>Description</strong></label>
+          <textarea id="faultDescription" placeholder="Describe the issue you experienced..."></textarea>
+
+          <label for="faultCategory"><strong>Category</strong></label>
+          <select id="faultCategory">
+            <option value="">Select a category</option>
+            <option value="Visual issue">Visual issue</option>
+            <option value="Data issue">Data issue</option>
+            <option value="Refresh issue">Refresh issue</option>
+            <option value="Performance">Performance</option>
+            <option value="Access issue">Access issue</option>
+            <option value="Incorrect KPI">Incorrect KPI</option>
+          </select>
+
+          <div class="meta">
+            <div><strong>User:</strong> {{ current_user }}</div>
+            <div><strong>Timestamp:</strong> <span id="metaTimestamp">-</span></div>
+            <div><strong>URL:</strong> <span id="metaUrl">-</span></div>
+            <div><strong>Screen:</strong> <span id="metaScreen">-</span></div>
+            <div><strong>Capture size:</strong> <span id="metaCaptureSize">-</span></div>
+            <div><strong>Preview size:</strong> <span id="metaPreviewSize">-</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div id="submitStatus">Submit this issue to GitHub for developer triage.</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button id="retakeBtn" class="secondary-btn">Retake Screenshot</button>
+          <button id="cancelBtn" class="secondary-btn">Cancel</button>
+          <button id="saveBtn" class="primary-btn">Create GitHub Issue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const reportFaultBtn = document.getElementById("reportFaultBtn");
+    const faultModal = document.getElementById("faultModal");
+    const closeModalBtn = document.getElementById("closeModalBtn");
+    const cancelBtn = document.getElementById("cancelBtn");
+    const retakeBtn = document.getElementById("retakeBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const toast = document.getElementById("toast");
+    const submitStatus = document.getElementById("submitStatus");
+    const successBox = document.getElementById("successBox");
+
+    const baseCanvas = document.getElementById("baseCanvas");
+    const drawCanvas = document.getElementById("drawCanvas");
+    const canvasWrap = document.getElementById("canvasWrap");
+    const annotationStage = document.getElementById("annotationStage");
+    const drawToggleBtn = document.getElementById("drawToggleBtn");
+    const undoBtn = document.getElementById("undoBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    const faultDescription = document.getElementById("faultDescription");
+    const faultCategory = document.getElementById("faultCategory");
+    const metaTimestamp = document.getElementById("metaTimestamp");
+    const metaUrl = document.getElementById("metaUrl");
+    const metaScreen = document.getElementById("metaScreen");
+    const metaCaptureSize = document.getElementById("metaCaptureSize");
+    const metaPreviewSize = document.getElementById("metaPreviewSize");
+
+    const showDemoPopupBtn = document.getElementById("showDemoPopupBtn");
+    const closeDemoPopupBtn = document.getElementById("closeDemoPopupBtn");
+    const reportFromDemoPopupBtn = document.getElementById("reportFromDemoPopupBtn");
+    const openFaultModalForTestingBtn = document.getElementById("openFaultModalForTestingBtn");
+    const showErrorToastBtn = document.getElementById("showErrorToastBtn");
+    const demoPopup = document.getElementById("demoPopup");
+
+    let capturedImageData = null;
+    let captureTimestamp = null;
+    let originalWidth = 0;
+    let originalHeight = 0;
+    let previewWidth = 0;
+    let previewHeight = 0;
+
+    let drawEnabled = true;
+    let isDrawing = false;
+    let strokes = [];
+    let currentStroke = null;
+
+    function showToast(message, type = "success") {
+      toast.textContent = message;
+      toast.className = "toast show " + type;
+      setTimeout(() => {
+        toast.className = "toast";
+      }, 5000);
+    }
+
+    function openModal() {
+      faultModal.classList.add("show");
+    }
+
+    function closeModal() {
+      faultModal.classList.remove("show");
+    }
+
+    function fillMeta() {
+      metaTimestamp.textContent = captureTimestamp;
+      metaUrl.textContent = window.location.href;
+      metaScreen.textContent = `${window.innerWidth} x ${window.innerHeight}`;
+    }
+
+    function calculatePreviewSizeByWidth(imageWidth, imageHeight) {
+      const stageRect = annotationStage.getBoundingClientRect();
+      const maxWidth = Math.max(300, stageRect.width - 16);
+      const scale = Math.min(maxWidth / imageWidth, 1);
+      const width = Math.round(imageWidth * scale);
+      const height = Math.round(imageHeight * scale);
+      return { width, height };
+    }
+
+    function setCanvasSizes(displayWidth, displayHeight) {
+      baseCanvas.width = displayWidth;
+      baseCanvas.height = displayHeight;
+      drawCanvas.width = displayWidth;
+      drawCanvas.height = displayHeight;
+
+      baseCanvas.style.width = displayWidth + "px";
+      baseCanvas.style.height = displayHeight + "px";
+      drawCanvas.style.width = displayWidth + "px";
+      drawCanvas.style.height = displayHeight + "px";
+
+      canvasWrap.style.width = displayWidth + "px";
+      canvasWrap.style.height = displayHeight + "px";
+
+      previewWidth = displayWidth;
+      previewHeight = displayHeight;
+
+      metaPreviewSize.textContent = `${previewWidth} x ${previewHeight}`;
+    }
+
+    function drawBaseImageFromDataUrl(dataUrl) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          originalWidth = img.width;
+          originalHeight = img.height;
+          metaCaptureSize.textContent = `${originalWidth} x ${originalHeight}`;
+
+          const size = calculatePreviewSizeByWidth(originalWidth, originalHeight);
+          setCanvasSizes(size.width, size.height);
+
+          const ctx = baseCanvas.getContext("2d");
+          ctx.clearRect(0, 0, baseCanvas.width, baseCanvas.height);
+          ctx.drawImage(img, 0, 0, previewWidth, previewHeight);
+
+          redrawAnnotations();
+          resolve();
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+    }
+
+    function getCanvasPoint(event) {
+      const rect = drawCanvas.getBoundingClientRect();
+      const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+      const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+
+      const scaleX = drawCanvas.width / rect.width;
+      const scaleY = drawCanvas.height / rect.height;
+
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      };
+    }
+
+    function redrawAnnotations() {
+      const ctx = drawCanvas.getContext("2d");
+      ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "red";
+      ctx.fillStyle = "red";
+      ctx.lineWidth = 4;
+
+      for (const stroke of strokes) {
+        if (!stroke.points || stroke.points.length === 0) continue;
+
+        if (stroke.points.length === 1) {
+          const p = stroke.points[0];
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+          ctx.fill();
+          continue;
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        for (let i = 1; i < stroke.points.length; i++) {
+          ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+        }
+        ctx.stroke();
+      }
+    }
+
+    function startDrawing(event) {
+      if (!drawEnabled) return;
+      event.preventDefault();
+
+      isDrawing = true;
+      const point = getCanvasPoint(event);
+      currentStroke = { points: [point] };
+      strokes.push(currentStroke);
+      redrawAnnotations();
+    }
+
+    function draw(event) {
+      if (!isDrawing || !drawEnabled) return;
+      event.preventDefault();
+
+      const point = getCanvasPoint(event);
+      currentStroke.points.push(point);
+      redrawAnnotations();
+    }
+
+    function stopDrawing() {
+      isDrawing = false;
+      currentStroke = null;
+    }
+
+    function clearAnnotations() {
+      strokes = [];
+      redrawAnnotations();
+    }
+
+    function undoLastStroke() {
+      if (strokes.length > 0) {
+        strokes.pop();
+        redrawAnnotations();
+      }
+    }
+
+    function toggleDrawing() {
+      drawEnabled = !drawEnabled;
+      drawToggleBtn.textContent = drawEnabled ? "Red Pen On" : "Red Pen Off";
+      drawToggleBtn.classList.toggle("active", drawEnabled);
+      drawCanvas.style.pointerEvents = drawEnabled ? "auto" : "none";
+    }
+
+    function resetAnnotationState() {
+      strokes = [];
+      isDrawing = false;
+      currentStroke = null;
+      redrawAnnotations();
+    }
+
+    async function captureVisibleScreen() {
+      try {
+        reportFaultBtn.disabled = true;
+        reportFaultBtn.textContent = "Capturing...";
+
+        await new Promise(resolve => setTimeout(resolve, 250));
+
+        const canvas = await html2canvas(document.body, {
+          backgroundColor: "#f3f6fa",
+          useCORS: false,
+          allowTaint: false,
+          scale: 1,
+          logging: false,
+          ignoreElements: (element) => {
+            const tag = element.tagName ? element.tagName.toLowerCase() : "";
+            if (tag === "iframe") return true;
+            return false;
+          }
+        });
+
+        capturedImageData = canvas.toDataURL("image/png");
+        captureTimestamp = new Date().toLocaleString();
+        fillMeta();
+        resetAnnotationState();
+
+        if (!faultModal.classList.contains("show")) {
+          openModal();
+        }
+
+        requestAnimationFrame(async () => {
+          try {
+            annotationStage.scrollTop = 0;
+            annotationStage.scrollLeft = 0;
+            await drawBaseImageFromDataUrl(capturedImageData);
+          } catch (err) {
+            console.error(err);
+            showToast("Could not render screenshot preview.", "error");
+          }
+        });
+      } catch (error) {
+        console.error("Capture failed:", error);
+        showToast("Screenshot failed.", "error");
+      } finally {
+        reportFaultBtn.disabled = false;
+        reportFaultBtn.textContent = "Report Fault";
+      }
+    }
+
+    function exportAnnotatedImageBlob() {
+      return new Promise((resolve) => {
+        const exportCanvas = document.createElement("canvas");
+        exportCanvas.width = originalWidth;
+        exportCanvas.height = originalHeight;
+        const ctx = exportCanvas.getContext("2d");
+
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, originalWidth, originalHeight);
+
+          const scaleBackX = originalWidth / previewWidth;
+          const scaleBackY = originalHeight / previewHeight;
+
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          ctx.strokeStyle = "red";
+          ctx.fillStyle = "red";
+          ctx.lineWidth = 4 * scaleBackX;
+
+          for (const stroke of strokes) {
+            if (!stroke.points || stroke.points.length === 0) continue;
+
+            if (stroke.points.length === 1) {
+              const p = stroke.points[0];
+              ctx.beginPath();
+              ctx.arc(p.x * scaleBackX, p.y * scaleBackY, 2 * scaleBackX, 0, Math.PI * 2);
+              ctx.fill();
+              continue;
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(stroke.points[0].x * scaleBackX, stroke.points[0].y * scaleBackY);
+            for (let i = 1; i < stroke.points.length; i++) {
+              ctx.lineTo(stroke.points[i].x * scaleBackX, stroke.points[i].y * scaleBackY);
+            }
+            ctx.stroke();
+          }
+
+          exportCanvas.toBlob((blob) => resolve(blob), "image/png");
+        };
+        img.src = capturedImageData;
+      });
+    }
+
+    reportFaultBtn.addEventListener("click", captureVisibleScreen);
+    retakeBtn.addEventListener("click", captureVisibleScreen);
+    closeModalBtn.addEventListener("click", closeModal);
+    cancelBtn.addEventListener("click", closeModal);
+
+    drawToggleBtn.addEventListener("click", toggleDrawing);
+    undoBtn.addEventListener("click", undoLastStroke);
+    clearBtn.addEventListener("click", clearAnnotations);
+
+    drawCanvas.addEventListener("mousedown", startDrawing);
+    drawCanvas.addEventListener("mousemove", draw);
+    drawCanvas.addEventListener("mouseup", stopDrawing);
+    drawCanvas.addEventListener("mouseleave", stopDrawing);
+
+    drawCanvas.addEventListener("touchstart", startDrawing, { passive: false });
+    drawCanvas.addEventListener("touchmove", draw, { passive: false });
+    drawCanvas.addEventListener("touchend", stopDrawing);
+
+    faultModal.addEventListener("click", (e) => {
+      if (e.target === faultModal) closeModal();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      const key = e.key ? e.key.toLowerCase() : "";
+
+      if (e.ctrlKey && e.altKey && key === "r") {
+        e.preventDefault();
+        captureVisibleScreen();
+      }
+    });
+
+    showDemoPopupBtn.addEventListener("click", () => {
+      demoPopup.classList.add("show");
+    });
+
+    closeDemoPopupBtn.addEventListener("click", () => {
+      demoPopup.classList.remove("show");
+    });
+
+    reportFromDemoPopupBtn.addEventListener("click", () => {
+      captureVisibleScreen();
+    });
+
+    openFaultModalForTestingBtn.addEventListener("click", () => {
+      openModal();
+    });
+
+    showErrorToastBtn.addEventListener("click", () => {
+      showToast('GitHub API error 401: {"message":"Bad credentials"}', "error");
+    });
+
+    window.addEventListener("resize", async () => {
+      if (faultModal.classList.contains("show") && capturedImageData) {
+        const oldPreviewWidth = previewWidth;
+        const oldPreviewHeight = previewHeight;
+
+        const normalizedStrokes = strokes.map(stroke => ({
+          points: stroke.points.map(p => ({
+            xRatio: oldPreviewWidth ? p.x / oldPreviewWidth : 0,
+            yRatio: oldPreviewHeight ? p.y / oldPreviewHeight : 0
+          }))
+        }));
+
+        try {
+          await drawBaseImageFromDataUrl(capturedImageData);
+
+          strokes = normalizedStrokes.map(stroke => ({
+            points: stroke.points.map(p => ({
+              x: p.xRatio * previewWidth,
+              y: p.yRatio * previewHeight
+            }))
+          }));
+
+          redrawAnnotations();
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    });
+
+    saveBtn.addEventListener("click", async () => {
+      const description = faultDescription.value.trim();
+      const category = faultCategory.value.trim();
+
+      if (!capturedImageData) {
+        showToast("No screenshot captured.", "error");
+        return;
+      }
+
+      if (!description) {
+        showToast("Please enter a description.", "error");
+        return;
+      }
+
+      saveBtn.disabled = true;
+      submitStatus.textContent = "Submitting issue to GitHub...";
+
+      try {
+        const screenshotBlob = await exportAnnotatedImageBlob();
+
+        const formData = new FormData();
+        formData.append("description", description);
+        formData.append("category", category);
+        formData.append("page_url", window.location.href);
+        formData.append("user_agent", navigator.userAgent);
+        formData.append("screenshot", screenshotBlob, "fault-report.png");
+
+        const response = await fetch("/api/report-fault", {
+          method: "POST",
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || "Failed to create GitHub issue");
+        }
+
+        successBox.innerHTML = `
+          <strong>GitHub issue created successfully.</strong><br>
+          Report ID: ${result.report_id}<br>
+          Issue: <a href="${result.github_issue_url}" target="_blank">${result.github_issue_url}</a>
+        `;
+        successBox.classList.add("show");
+
+        faultDescription.value = "";
+        faultCategory.value = "";
+        showToast(`GitHub issue #${result.github_issue_number} created.`, "success");
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || "Failed to submit issue.", "error");
+      } finally {
+        saveBtn.disabled = false;
+        submitStatus.textContent = "Submit this issue to GitHub for developer triage.";
+      }
+    });
+  </script>
+</body>
+</html>
